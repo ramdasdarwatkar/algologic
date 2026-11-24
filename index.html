@@ -1,0 +1,1726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Algologic | Quantitative Market Research & Real-Time Trade Signals</title>
+  <meta name="description" content="Algologic is an institutional market research and algorithmic trade signal platform analyzing multi-timeframe NSE tick data, order flow imbalances, and high-probability trade setups.">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#EEF2FF',
+              100: '#E0E7FF',
+              200: '#C7D2FE',
+              300: '#A5B4FC',
+              400: '#818CF8',
+              500: '#6366F1',
+              600: '#4F46E5',
+              700: '#4338CA',
+              800: '#3730A3',
+              900: '#312E81',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    .bg-dot-pattern {
+      background-image: radial-gradient(rgba(148, 163, 184, 0.25) 1.2px, transparent 1.2px);
+      background-size: 24px 24px;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F8FAFC;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94A3B8;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    @keyframes progress {
+      0% { width: 0%; }
+      100% { width: 100%; }
+    }
+    .animate-progress {
+      animation: progress 5.5s linear infinite;
+    }
+  </style>
+</head>
+<body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-indigo-100 selection:text-indigo-900 font-sans">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // --- Embedded Real Trade Dataset & Candle History ---
+    const BACKTEST_TRADES = [
+      {"symbol": "BELRISE", "date": "2026-11-16", "order_type": "BUY", "open": 221.5, "gap": "+2.86%", "entry": 232.97, "exit": 237.63, "stoploss": 221.5, "target_price": 237.63, "target_achieved": "YES", "stoploss_hit": "NO", "second_candle_color": "Green", "after_target_extreme_without_entry_touch": 241.89, "max_profit_before_stoploss": null, "pnl_points": 4.66, "return_pct": "+2.00%", "exit_reason": "TARGET", "exit_time": "2026-11-16 09:30:00", "thesis": "Pre-market IEP surge with 7.4x opening volume surge & clear VWAP breakout."},
+      {"symbol": "ARIHANTSUP", "date": "2026-11-05", "order_type": "BUY", "open": 209.65, "gap": "+0.02%", "entry": 209.66, "exit": 213.85, "stoploss": 209.65, "target_price": 213.85, "target_achieved": "YES", "stoploss_hit": "NO", "second_candle_color": "Green", "after_target_extreme_without_entry_touch": 218.0, "max_profit_before_stoploss": null, "pnl_points": 4.19, "return_pct": "+2.00%", "exit_reason": "TARGET", "exit_time": "2026-11-05 09:35:00", "thesis": "Institutional block accumulation detected at 09:15 with 5.2x volume surge."},
+      {"symbol": "INDOCO", "date": "2026-11-18", "order_type": "BUY", "open": 225.0, "gap": "+0.01%", "entry": 243.0, "exit": 247.86, "stoploss": 225.0, "target_price": 247.86, "target_achieved": "YES", "stoploss_hit": "NO", "second_candle_color": "Green", "after_target_extreme_without_entry_touch": 253.99, "max_profit_before_stoploss": null, "pnl_points": 4.86, "return_pct": "+2.00%", "exit_reason": "TARGET", "exit_time": "2026-11-18 09:20:00", "thesis": "Pharma sector momentum rally, clean multi-week horizontal resistance flip."},
+      {"symbol": "EVERESTIND", "date": "2026-09-24", "order_type": "SELL", "open": 449.9, "gap": "+0.95%", "entry": 447.9, "exit": 438.94, "stoploss": 449.9, "target_price": 438.94, "target_achieved": "YES", "stoploss_hit": "NO", "second_candle_color": "Red", "after_target_extreme_without_entry_touch": 425.6, "max_profit_before_stoploss": null, "pnl_points": 8.96, "return_pct": "+2.00%", "exit_reason": "TARGET", "exit_time": "2026-09-24 09:20:00", "thesis": "5m Open=High breakdown with severe CVD buyer exhaustion and distribution."},
+      {"symbol": "FAZE3Q", "date": "2026-09-24", "order_type": "SELL", "open": 444.0, "gap": "+2.77%", "entry": 434.2, "exit": 425.52, "stoploss": 444.0, "target_price": 425.52, "target_achieved": "YES", "stoploss_hit": "NO", "second_candle_color": "Red", "after_target_extreme_without_entry_touch": 421.0, "max_profit_before_stoploss": null, "pnl_points": 8.68, "return_pct": "+2.00%", "exit_reason": "TARGET", "exit_time": "2026-09-24 14:25:00", "thesis": "Volume shocker breakdown below 20-day EMA support on intraday weakness."},
+      {"symbol": "INDIACEM", "date": "2026-11-05", "order_type": "BUY", "open": 336.0, "gap": "+1.74%", "entry": 341.95, "exit": 348.79, "stoploss": 336.0, "target_price": 348.79, "target_achieved": "YES", "stoploss_hit": "NO", "second_candle_color": "Red", "after_target_extreme_without_entry_touch": 350.5, "max_profit_before_stoploss": null, "pnl_points": 6.84, "return_pct": "+2.00%", "exit_reason": "TARGET", "exit_time": "2026-11-05 09:30:00", "thesis": "Cement sector breakout led by institutional buying and positive volume delta."},
+      {"symbol": "NILE", "date": "2026-11-05", "order_type": "BUY", "open": 1339.2, "gap": "+0.75%", "entry": 1340.0, "exit": 1366.8, "stoploss": 1339.2, "target_price": 1366.8, "target_achieved": "YES", "stoploss_hit": "NO", "second_candle_color": "Green", "after_target_extreme_without_entry_touch": 1411.8, "max_profit_before_stoploss": null, "pnl_points": 26.8, "return_pct": "+2.00%", "exit_reason": "TARGET", "exit_time": "2026-11-05 09:20:00", "thesis": "High-conviction microcap breakout with 8.2x relative volume and tight risk."},
+      {"symbol": "MAJESAUT", "date": "2026-11-05", "order_type": "BUY", "open": 371.15, "gap": "-1.90%", "entry": 378.0, "exit": 385.56, "stoploss": 371.15, "target_price": 385.56, "target_achieved": "YES", "stoploss_hit": "NO", "second_candle_color": "Green", "after_target_extreme_without_entry_touch": 394.0, "max_profit_before_stoploss": null, "pnl_points": 7.56, "return_pct": "+2.00%", "exit_reason": "TARGET", "exit_time": "2026-11-05 09:20:00", "thesis": "Gap down absorption & immediate V-shape recovery with massive order influx."},
+      {"symbol": "CAPITALSFB", "date": "2026-11-05", "order_type": "BUY", "open": 265.85, "gap": "+1.06%", "entry": 265.95, "exit": 265.85, "stoploss": 265.85, "target_price": 271.27, "target_achieved": "NO", "stoploss_hit": "YES", "second_candle_color": "Red", "after_target_extreme_without_entry_touch": null, "max_profit_before_stoploss": 4.05, "pnl_points": -0.1, "return_pct": "-0.04%", "exit_reason": "STOPLOSS", "exit_time": "2026-11-05 10:35:00", "thesis": "False breakout re-tested opening lows, disciplined stop loss executed immediately."}
+    ];
+
+    const TRADES_BUNDLE = {
+      "BELRISE": {
+        "symbol": "BELRISE",
+        "date": "2026-11-16",
+        "type": "BUY",
+        "target": 237.63,
+        "entry": 232.97,
+        "stoploss": 221.5,
+        "extreme": 241.89,
+        "status": "TARGET_HIT",
+        "candles": [
+          {"time": "09:15", "open": 221.5, "high": 232.97, "low": 221.5, "close": 232.23, "volume": 2652124},
+          {"time": "09:20", "open": 232.5, "high": 235.0, "low": 230.26, "close": 234.41, "volume": 3378801},
+          {"time": "09:25", "open": 234.59, "high": 236.53, "low": 232.85, "close": 233.67, "volume": 3287609},
+          {"time": "09:30", "open": 233.5, "high": 238.25, "low": 232.0, "close": 237.42, "volume": 4275157},
+          {"time": "09:35", "open": 237.36, "high": 238.36, "low": 235.6, "close": 236.58, "volume": 2357401},
+          {"time": "09:40", "open": 236.7, "high": 239.31, "low": 236.45, "close": 237.51, "volume": 3250884},
+          {"time": "09:45", "open": 237.28, "high": 238.8, "low": 236.38, "close": 237.66, "volume": 2138251},
+          {"time": "09:50", "open": 237.69, "high": 238.29, "low": 236.05, "close": 237.1, "volume": 1532229},
+          {"time": "10:00", "open": 237.18, "high": 240.18, "low": 237.18, "close": 239.66, "volume": 2860181},
+          {"time": "10:05", "open": 239.7, "high": 240.98, "low": 238.74, "close": 239.48, "volume": 3280280},
+          {"time": "11:00", "open": 238.46, "high": 241.89, "low": 238.3, "close": 241.31, "volume": 3417355}
+        ]
+      },
+      "ARIHANTSUP": {
+        "symbol": "ARIHANTSUP",
+        "date": "2026-11-05",
+        "type": "BUY",
+        "target": 213.85,
+        "entry": 209.66,
+        "stoploss": 209.65,
+        "extreme": 218.0,
+        "status": "TARGET_HIT",
+        "candles": [
+          {"time": "09:15", "open": 209.65, "high": 209.66, "low": 209.65, "close": 209.66, "volume": 157},
+          {"time": "09:20", "open": 210.1, "high": 210.15, "low": 210.1, "close": 210.15, "volume": 340},
+          {"time": "09:25", "open": 210.2, "high": 210.6, "low": 210.2, "close": 210.4, "volume": 412},
+          {"time": "09:35", "open": 210.5, "high": 218.0, "low": 210.5, "close": 211.51, "volume": 2830},
+          {"time": "09:40", "open": 211.6, "high": 218.0, "low": 211.5, "close": 217.0, "volume": 11970},
+          {"time": "09:45", "open": 217.31, "high": 217.31, "low": 214.99, "close": 214.99, "volume": 3900}
+        ]
+      },
+      "INDOCO": {
+        "symbol": "INDOCO",
+        "date": "2026-11-18",
+        "type": "BUY",
+        "target": 247.86,
+        "entry": 243.0,
+        "stoploss": 225.0,
+        "extreme": 253.99,
+        "status": "TARGET_HIT",
+        "candles": [
+          {"time": "09:15", "open": 225.0, "high": 243.0, "low": 225.0, "close": 243.0, "volume": 73054},
+          {"time": "09:20", "open": 244.0, "high": 251.6, "low": 242.85, "close": 250.8, "volume": 616571},
+          {"time": "09:25", "open": 250.63, "high": 252.0, "low": 248.09, "close": 251.65, "volume": 766826},
+          {"time": "09:30", "open": 251.9, "high": 253.99, "low": 251.23, "close": 251.49, "volume": 1122921},
+          {"time": "09:35", "open": 251.38, "high": 252.7, "low": 249.93, "close": 250.1, "volume": 715934}
+        ]
+      },
+      "EVERESTIND": {
+        "symbol": "EVERESTIND",
+        "date": "2026-09-24",
+        "type": "SELL",
+        "target": 438.94,
+        "entry": 447.9,
+        "stoploss": 449.9,
+        "extreme": 425.6,
+        "status": "TARGET_HIT",
+        "candles": [
+          {"time": "09:15", "open": 449.9, "high": 449.9, "low": 447.9, "close": 447.9, "volume": 127},
+          {"time": "09:20", "open": 448.0, "high": 448.0, "low": 433.0, "close": 433.0, "volume": 389},
+          {"time": "09:25", "open": 433.0, "high": 433.0, "low": 433.0, "close": 433.0, "volume": 471},
+          {"time": "09:35", "open": 446.8, "high": 446.8, "low": 433.0, "close": 433.0, "volume": 710},
+          {"time": "14:10", "open": 433.0, "high": 433.0, "low": 425.6, "close": 426.0, "volume": 12710}
+        ]
+      }
+    };
+
+    // Live Signal Stream Data
+    const LIVE_SIGNALS_FEED = [
+      {
+        id: "SIG-8091",
+        symbol: "BELRISE",
+        segment: "EQUITY • NSE",
+        direction: "BUY",
+        badge: "BREAKOUT + VOLUME SHOCKER",
+        entry: 232.97,
+        stoploss: 221.50,
+        target1: 237.63,
+        target2: 242.00,
+        riskReward: "1:2.8",
+        confidence: "95%",
+        volumeSurge: "7.4x",
+        status: "TARGET HIT (+2.00%)",
+        statusType: "success",
+        time: "09:15:32 AM",
+        catalyst: "Pre-market IEP Accumulation + VWAP High Reclaim"
+      },
+      {
+        id: "SIG-8092",
+        symbol: "TRENT",
+        segment: "F&O • FUTURES",
+        direction: "BUY",
+        badge: "MOMENTUM CONTINUATION",
+        entry: 3256.00,
+        stoploss: 3215.00,
+        target1: 3340.00,
+        target2: 3390.00,
+        riskReward: "1:2.5",
+        confidence: "92%",
+        volumeSurge: "6.2x",
+        status: "ACTIVE (RUNNING +3.75%)",
+        statusType: "running",
+        time: "09:20:10 AM",
+        catalyst: "Institutional Block Inflow + CVD Net Delta Positive"
+      },
+      {
+        id: "SIG-8093",
+        symbol: "EVERESTIND",
+        segment: "EQUITY • NSE",
+        direction: "SELL",
+        badge: "OPEN=HIGH REJECTION",
+        entry: 447.90,
+        stoploss: 449.90,
+        target1: 438.94,
+        target2: 432.00,
+        riskReward: "1:4.5",
+        confidence: "94%",
+        volumeSurge: "5.8x",
+        status: "TARGET HIT (+2.00%)",
+        statusType: "success",
+        time: "09:15:45 AM",
+        catalyst: "Failed Breakout + Aggressive Seller Pressure"
+      },
+      {
+        id: "SIG-8094",
+        symbol: "INDOCO",
+        segment: "EQUITY • NSE",
+        direction: "BUY",
+        badge: "SECTOR ROTATION ALPHA",
+        entry: 243.00,
+        stoploss: 225.00,
+        target1: 247.86,
+        target2: 254.00,
+        riskReward: "1:2.2",
+        confidence: "91%",
+        volumeSurge: "5.1x",
+        status: "TARGET HIT (+2.00%)",
+        statusType: "success",
+        time: "09:18:22 AM",
+        catalyst: "Pharma Index Expansion + 5m Breakout Bar"
+      }
+    ];
+
+    // Institutional Research Reports Briefs
+    const RESEARCH_BRIEFS = [
+      {
+        id: "RES-101",
+        date: "Today • Morning Brief",
+        title: "Nifty 500 Breadth Expansion & Sector Gamma Shifts",
+        summary: "Analysis of 2,400+ NSE equities reveals a sudden surge in midcap liquidity pools, with 68% of advance-decline breadth holding above their 20-day EMA. Defence and Capital Goods exhibiting highest relative alpha.",
+        readTime: "4 min read",
+        sentiment: "Bullish (+0.74)",
+        keyStats: [
+          { label: "Market Breadth", value: "68.4% Advance" },
+          { label: "FII Long Exposure", value: "64.2%" },
+          { label: "VIX Regime", value: "13.8 (Low Vol)" }
+        ]
+      },
+      {
+        id: "RES-102",
+        date: "Yesterday • Deep Dive",
+        title: "Order Flow Anomalies in 09:00 Pre-Open IEP Auctions",
+        summary: "Evaluating 8.58M 5-minute ticks over 60 trading sessions: stocks displaying >3x indicative volume imbalances during the 09:08 AM equilibrium price discovery window have an 81.2% probability of establishing the day's trend within 15 minutes.",
+        readTime: "6 min read",
+        sentiment: "High Probability Alpha",
+        keyStats: [
+          { label: "Sample Size", value: "2,407 Equities" },
+          { label: "Predictive Edge", value: "+3.4 R-Multiple" },
+          { label: "Latency Window", value: "<120s Pre-Open" }
+        ]
+      },
+      {
+        id: "RES-103",
+        date: "2 Days Ago • Quantitative Note",
+        title: "Microstructure Risk: Why Stoploss Discipline Outperforms Prediction",
+        summary: "Mathematical audit of 40 real breakout trades: targeting fixed 2% gain with opening-tick stop-loss guarantees positive mathematical expectancy even with a 50% win rate due to asymmetric risk-reward preservation.",
+        readTime: "5 min read",
+        sentiment: "Mathematical Edge",
+        keyStats: [
+          { label: "Target Win Rate", value: "52.5% Audit" },
+          { label: "Max Drawdown", value: "1.8% Capped" },
+          { label: "STT & Tax Modeled", value: "100% Net" }
+        ]
+      }
+    ];
+
+    // --- Inline Crisp Icons ---
+    const IconSparkles = () => (
+      <svg className="w-4 h-4 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+        <path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>
+      </svg>
+    );
+
+    const IconArrowUpRight = () => (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+      </svg>
+    );
+
+    const IconTrendUp = () => (
+      <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+        <polyline points="16 7 22 7 22 13"/>
+      </svg>
+    );
+
+    const IconTrendDown = () => (
+      <svg className="w-4 h-4 text-rose-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/>
+        <polyline points="16 17 22 17 22 11"/>
+      </svg>
+    );
+
+    const IconActivity = () => (
+      <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+    );
+
+    const IconCheck = () => (
+      <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    );
+
+    const IconBarChart = () => (
+      <svg className="w-4 h-4 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+    );
+
+    const IconDownload = () => (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    );
+
+    // --- Main App Component ---
+    function App() {
+      // 3 Auto-Changing Slides State
+      const [heroSlide, setHeroSlide] = useState(0);
+
+      const [activeCockpitTab, setActiveCockpitTab] = useState("signals");
+      const [selectedSymbol, setSelectedSymbol] = useState("BELRISE");
+      const [signalFilter, setSignalFilter] = useState("ALL");
+      const [tableFilter, setTableFilter] = useState("ALL");
+      
+      // Expectancy Calculator State
+      const [calcCapital, setCalcCapital] = useState(200000);
+      const [calcRiskPct, setCalcRiskPct] = useState(1.5);
+      const [calcTradesMonth, setCalcTradesMonth] = useState(16);
+      const [calcWinRate, setCalcWinRate] = useState(65);
+
+      const [emailInput, setEmailInput] = useState("");
+      const [subscribed, setSubscribed] = useState(false);
+
+      // 3 Hero Slides Definition
+      const HERO_SLIDES = [
+        {
+          id: 0,
+          tabTitle: "01. Market Research & IEP",
+          badge: "01 • QUANTITATIVE RESEARCH DESK",
+          badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
+          headlineMain: "Institutional Market Research.",
+          headlineGrad: "Uncovering Hidden Liquidity & Order Flow.",
+          subtitle: "We analyze 2,400+ NSE equities, institutional block deals, and sector rotation trends to deliver predictive market intelligence before retail wakes up.",
+          stat1: { label: "NSE UNIVERSE", value: "2,407 Equities" },
+          stat2: { label: "HISTORICAL DEPTH", value: "8.58M 5m Candles" },
+          stat3: { label: "PRE-OPEN AUDIT", value: "09:00 AM Discovery" },
+          ctaPrimary: "Read Market Research",
+          ctaPrimaryLink: "#research",
+          ctaSecondary: "Inspect Live Terminal",
+          ctaSecondaryLink: "#cockpit",
+          previewType: "research"
+        },
+        {
+          id: 1,
+          tabTitle: "02. Real-Time Trade Signals",
+          badge: "02 • HIGH-CONVICTION TRADE SIGNALS",
+          badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+          headlineMain: "Sub-15ms Live Trade Signals.",
+          headlineGrad: "Clear Entry, Stop Loss & Targets.",
+          subtitle: "Zero-repaint quantitative breakout signals triggered by 5x volume shockers, VWAP reclaiming momentum, and order flow imbalances across Equities & F&O.",
+          stat1: { label: "TARGET HIT RATE", value: "52.5% Target (21/40)" },
+          stat2: { label: "AVG RISK-REWARD", value: "1 : 2.4 Multiplier" },
+          stat3: { label: "DISPATCH LATENCY", value: "<15ms VIP Alerts" },
+          ctaPrimary: "Launch Signals Terminal",
+          ctaPrimaryLink: "#cockpit",
+          ctaSecondary: "Inspect 5m Breakouts",
+          ctaSecondaryLink: "#cockpit",
+          previewType: "signals"
+        },
+        {
+          id: 2,
+          tabTitle: "03. Performance & Webhooks",
+          badge: "03 • VERIFIED AUDIT & BROKER ROUTING",
+          badgeColor: "bg-cyan-50 text-cyan-700 border-cyan-200",
+          headlineMain: "Mathematical Expectancy.",
+          headlineGrad: "Direct Broker Routing in <15ms.",
+          subtitle: "Deploy verified quantitative strategies directly to Zerodha Kite, Upstox, and Angel One with automated hardware kill-switches and a 100% transparent audit log.",
+          stat1: { label: "BACKTEST AUDIT", value: "100% Verified Log" },
+          stat2: { label: "MUMBAI CO-LO", value: "0.8ms Direct Feed" },
+          stat3: { label: "BROKER INTEGRATION", value: "Zerodha & Upstox" },
+          ctaPrimary: "View 40-Trade Audit Log",
+          ctaPrimaryLink: "#audit",
+          ctaSecondary: "Simulate Compounding",
+          ctaSecondaryLink: "#calculator",
+          previewType: "expectancy"
+        }
+      ];
+
+      // Auto-changing timer for 3 Hero Slides (Continuous without interruption)
+      useEffect(() => {
+        const timer = setInterval(() => {
+          setHeroSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+        }, 3800);
+        return () => clearInterval(timer);
+      }, []);
+
+      const activeSlide = HERO_SLIDES[heroSlide];
+
+      // Active trade details
+      const activeSignal = useMemo(() => {
+        return LIVE_SIGNALS_FEED.find(s => s.symbol === selectedSymbol) || LIVE_SIGNALS_FEED[0];
+      }, [selectedSymbol]);
+
+      const candleDataset = useMemo(() => {
+        if (TRADES_BUNDLE[selectedSymbol] && TRADES_BUNDLE[selectedSymbol].candles) {
+          return TRADES_BUNDLE[selectedSymbol].candles;
+        }
+        return TRADES_BUNDLE["BELRISE"].candles;
+      }, [selectedSymbol]);
+
+      // Filtered Signals
+      const filteredSignals = useMemo(() => {
+        if (signalFilter === "BUY") return LIVE_SIGNALS_FEED.filter(s => s.direction === "BUY");
+        if (signalFilter === "SELL") return LIVE_SIGNALS_FEED.filter(s => s.direction === "SELL");
+        return LIVE_SIGNALS_FEED;
+      }, [signalFilter]);
+
+      // Filtered Backtest Trades
+      const filteredAuditTrades = useMemo(() => {
+        if (tableFilter === "WIN") return BACKTEST_TRADES.filter(t => t.target_achieved === "YES");
+        if (tableFilter === "BUY") return BACKTEST_TRADES.filter(t => t.order_type === "BUY");
+        if (tableFilter === "SELL") return BACKTEST_TRADES.filter(t => t.order_type === "SELL");
+        return BACKTEST_TRADES;
+      }, [tableFilter]);
+
+      // Calculator Results
+      const calcMetrics = useMemo(() => {
+        const riskPerTrade = (calcCapital * calcRiskPct) / 100;
+        const avgRewardMultiplier = 2.2;
+        const winTrades = Math.round((calcTradesMonth * calcWinRate) / 100);
+        const lossTrades = calcTradesMonth - winTrades;
+
+        const grossGains = winTrades * (riskPerTrade * avgRewardMultiplier);
+        const grossLosses = lossTrades * riskPerTrade;
+        const netMonthlyProfit = grossGains - grossLosses;
+        const monthlyReturnPct = ((netMonthlyProfit / calcCapital) * 100).toFixed(1);
+        const sixMonthCapital = Math.round(calcCapital * Math.pow(1 + (netMonthlyProfit / calcCapital), 6));
+
+        return {
+          riskPerTrade: Math.round(riskPerTrade),
+          winTrades,
+          lossTrades,
+          netMonthlyProfit: Math.round(netMonthlyProfit),
+          monthlyReturnPct,
+          sixMonthCapital
+        };
+      }, [calcCapital, calcRiskPct, calcTradesMonth, calcWinRate]);
+
+      // Chart Calculations
+      const chartWidth = 620;
+      const chartHeight = 260;
+      const minPrice = useMemo(() => {
+        const lows = candleDataset.map(c => c.low);
+        return Math.min(...lows, activeSignal.stoploss || 200) * 0.995;
+      }, [candleDataset, activeSignal]);
+
+      const maxPrice = useMemo(() => {
+        const highs = candleDataset.map(c => c.high);
+        return Math.max(...highs, activeSignal.target2 || activeSignal.target1 || 245) * 1.005;
+      }, [candleDataset, activeSignal]);
+
+      const priceToY = (p) => {
+        if (maxPrice === minPrice) return chartHeight / 2;
+        return chartHeight - ((p - minPrice) / (maxPrice - minPrice)) * (chartHeight - 40) - 20;
+      };
+
+      const candleSpacing = chartWidth / Math.max(candleDataset.length, 1);
+
+      // CSV export
+      const handleDownloadAudit = () => {
+        const headers = ["symbol", "date", "order_type", "open", "entry", "exit", "stoploss", "target_price", "pnl_points", "return_pct", "exit_reason", "thesis"].join(",");
+        const rows = BACKTEST_TRADES.map(t => [
+          t.symbol, t.date, t.order_type, t.open, t.entry, t.exit, t.stoploss, t.target_price, t.pnl_points, t.return_pct, t.exit_reason, `"${t.thesis || ''}"`
+        ].join(",")).join("\n");
+        const blob = new Blob([headers + "\n" + rows], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "algologic_verified_signal_audit.csv";
+        a.click();
+      };
+
+      return (
+        <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans relative selection:bg-indigo-100 selection:text-indigo-900">
+          
+          {/* ========================================================= */}
+          {/* 1. QUIET HEADER: MENU KEPT RIGHT-ALIGNED (NOT IN CENTER)   */}
+          {/* ========================================================= */}
+          <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+              
+              {/* Brand Logo (Left) */}
+              <a href="#" className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-2xs">
+                  <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+                    <polyline points="16 7 22 7 22 13"/>
+                    <circle cx="2" cy="17" r="1.5" fill="currentColor"/>
+                    <circle cx="8.5" cy="10.5" r="1.5" fill="currentColor"/>
+                    <circle cx="13.5" cy="15.5" r="1.5" fill="currentColor"/>
+                    <circle cx="22" cy="7" r="1.5" fill="currentColor"/>
+                  </svg>
+                </div>
+                <span className="text-xl font-black tracking-tight text-slate-900">
+                  algo<span className="text-indigo-600">logic</span>
+                </span>
+              </a>
+
+              {/* All Navigation & Action Pinned to the Right (Right-to-Left Layout) */}
+              <div className="flex items-center gap-6 ml-auto">
+                <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
+                  <a href="#cockpit" className="hover:text-slate-900 transition-colors">Signals</a>
+                  <a href="#research" className="hover:text-slate-900 transition-colors">Research</a>
+                  <a href="#audit" className="hover:text-slate-900 transition-colors">Audit</a>
+                  <a href="#calculator" className="hover:text-slate-900 transition-colors">Calculator</a>
+                  <a href="#pricing" className="hover:text-slate-900 transition-colors">Pricing</a>
+                </nav>
+
+                <a
+                  href="login.html"
+                  className="text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 active:scale-[0.98] px-4 py-2 rounded-xl shadow-2xs transition-all font-mono"
+                >
+                  Sign In
+                </a>
+              </div>
+
+            </div>
+          </header>
+
+          {/* ========================================================= */}
+          {/* 2. HERO SECTION: 3 SLIDES AUTO-CHANGING CONTINUOUSLY      */}
+          {/* ========================================================= */}
+          <section className="relative pt-6 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto bg-dot-pattern">
+            {/* Auto-Slide Presentation Container */}
+            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xl shadow-slate-200/40 p-6 sm:p-10 transition-all duration-500">
+              
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                
+                {/* Left Column: Headlines & Content */}
+                <div className="lg:col-span-7 space-y-5">
+                  
+                  {/* Badge */}
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-mono font-bold shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>{activeSlide.badge}</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-slate-500 font-normal">Auto-Replay 24x7</span>
+                  </div>
+
+                  {/* Headline */}
+                  <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-[1.15]">
+                    {activeSlide.headlineMain} <br className="hidden sm:block" />
+                    <span className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-emerald-600 bg-clip-text text-transparent">
+                      {activeSlide.headlineGrad}
+                    </span>
+                  </h1>
+
+                  {/* Subtitle */}
+                  <p className="text-base sm:text-lg text-slate-600 leading-relaxed font-normal max-w-xl">
+                    {activeSlide.subtitle}
+                  </p>
+
+                  {/* Key Proof Stats for this Slide */}
+                  <div className="grid grid-cols-3 gap-3 pt-2 max-w-lg font-mono">
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                      <span className="text-[10px] text-slate-400 block font-bold uppercase">{activeSlide.stat1.label}</span>
+                      <span className="text-sm sm:text-base font-extrabold text-slate-900">{activeSlide.stat1.value}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                      <span className="text-[10px] text-slate-400 block font-bold uppercase">{activeSlide.stat2.label}</span>
+                      <span className="text-sm sm:text-base font-extrabold text-indigo-600">{activeSlide.stat2.value}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                      <span className="text-[10px] text-slate-400 block font-bold uppercase">{activeSlide.stat3.label}</span>
+                      <span className="text-sm sm:text-base font-extrabold text-emerald-600">{activeSlide.stat3.value}</span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons & Manual Controls */}
+                  <div className="pt-2 flex flex-wrap items-center gap-3">
+                    <a
+                      href={activeSlide.ctaPrimaryLink}
+                      className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm font-semibold px-6 py-3 rounded-xl shadow-md shadow-indigo-100 hover:shadow-indigo-200 transition-all"
+                    >
+                      <span>{activeSlide.ctaPrimary}</span>
+                      <IconArrowUpRight />
+                    </a>
+                    <a
+                      href={activeSlide.ctaSecondaryLink}
+                      className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-semibold px-5 py-3 rounded-xl transition-all"
+                    >
+                      <span>{activeSlide.ctaSecondary}</span>
+                    </a>
+
+                    {/* Auto-Slide Indicator Dots (Cycles Automatically) */}
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      {HERO_SLIDES.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setHeroSlide(idx)}
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            heroSlide === idx ? "w-6 bg-indigo-600" : "w-2 bg-slate-300 hover:bg-slate-400"
+                          }`}
+                          title={`Slide ${idx + 1}`}
+                        />
+                      ))}
+                    </div>
+
+                  </div>
+
+                </div>
+
+                {/* Right Column: Dynamic Visual Mockup Per Slide */}
+                <div className="lg:col-span-5">
+                  
+                  {/* SLIDE 0 VISUAL: RESEARCH BREADTH & SECTOR ROTATION */}
+                  {heroSlide === 0 && (
+                    <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-xl border border-slate-800 space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs font-mono">
+                        <span className="text-indigo-400 font-bold">NSE BREADTH & SECTOR INFLOW</span>
+                        <span className="text-emerald-400 font-bold">68.4% Advance</span>
+                      </div>
+
+                      {/* Breadth Barometer */}
+                      <div>
+                        <div className="flex justify-between text-xs font-mono text-slate-300 mb-1.5">
+                          <span>Market Advance Ratio</span>
+                          <span className="text-emerald-400">1,647 Up / 760 Down</span>
+                        </div>
+                        <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden flex">
+                          <div className="bg-emerald-500 h-full w-[68%]"></div>
+                          <div className="bg-rose-500 h-full w-[32%]"></div>
+                        </div>
+                      </div>
+
+                      {/* Sector Rotation Heatmap list */}
+                      <div className="space-y-2 text-xs font-mono">
+                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-bold">
+                          INSTITUTIONAL INFLOW LEADERBOARD:
+                        </span>
+                        {[
+                          { sector: "Defence & Aerospace", change: "+3.42%", flow: "₹480 Cr", isBull: true },
+                          { sector: "Capital Goods & Infra", change: "+2.85%", flow: "₹360 Cr", isBull: true },
+                          { sector: "Auto & Ancillaries", change: "+2.14%", flow: "₹290 Cr", isBull: true },
+                          { sector: "IT Services", change: "-0.45%", flow: "-₹110 Cr", isBull: false }
+                        ].map((sec, i) => (
+                          <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 border border-slate-700/50">
+                            <span className="text-slate-200 font-medium">{sec.sector}</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-slate-400 text-[11px]">{sec.flow}</span>
+                              <span className={`font-bold ${sec.isBull ? "text-emerald-400" : "text-rose-400"}`}>
+                                {sec.change}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 text-[11px] font-mono text-slate-400 flex items-center justify-between border-t border-slate-800">
+                        <span>Updated 09:08 AM Pre-Open</span>
+                        <span className="text-indigo-400">IEP Equilibrium Scanned</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SLIDE 1 VISUAL: LIVE SIGNAL PREVIEW CARD */}
+                  {heroSlide === 1 && (
+                    <div className="bg-white rounded-2xl p-5 shadow-xl border border-slate-200 space-y-3.5">
+                      <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                          <span className="text-xs font-mono font-bold text-slate-900">LIVE SIGNAL • BELRISE</span>
+                        </div>
+                        <span className="text-[10px] font-mono font-extrabold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          TARGET HIT (+2.00%)
+                        </span>
+                      </div>
+
+                      {/* Signal Levels */}
+                      <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100 font-mono text-xs text-center">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-bold">ENTRY</span>
+                          <span className="font-extrabold text-slate-900">₹232.97</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-rose-500 block font-bold">STOPLOSS</span>
+                          <span className="font-extrabold text-rose-700">₹221.50</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-emerald-600 block font-bold">TARGET</span>
+                          <span className="font-extrabold text-emerald-700">₹237.63</span>
+                        </div>
+                      </div>
+
+                      {/* Catalyst & Flow Details */}
+                      <div className="space-y-1.5 text-xs text-slate-600 font-mono">
+                        <div className="flex justify-between py-1 border-b border-slate-100">
+                          <span className="text-slate-400">Trigger Setup</span>
+                          <span className="font-bold text-slate-800">5m Open=Low + 7.4x Vol</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-100">
+                          <span className="text-slate-400">Risk-to-Reward</span>
+                          <span className="font-bold text-indigo-600">1 : 2.8 R-Multiple</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-slate-400">Extreme High Reached</span>
+                          <span className="font-bold text-emerald-600">₹241.89 (+3.8%)</span>
+                        </div>
+                      </div>
+
+                      <a
+                        href="#cockpit"
+                        className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-center font-semibold text-xs transition-all block font-mono"
+                      >
+                        Inspect Signal Candlestick Chart →
+                      </a>
+                    </div>
+                  )}
+
+                  {/* SLIDE 2 VISUAL: EXPECTANCY & AUTOMATION CARD */}
+                  {heroSlide === 2 && (
+                    <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-xl border border-slate-800 space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs font-mono">
+                        <span className="text-cyan-400 font-bold">AUTOMATED BROKER DISPATCH</span>
+                        <span className="text-emerald-400 font-bold">&lt;15ms Latency</span>
+                      </div>
+
+                      {/* Expectancy Metric */}
+                      <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700">
+                        <span className="text-[10px] font-mono text-slate-400 block font-bold">PROJECTED MONTHLY EXPECTANCY</span>
+                        <div className="flex items-baseline gap-2 mt-0.5">
+                          <span className="text-2xl font-black text-white font-mono">₹46,800</span>
+                          <span className="text-xs font-mono text-emerald-400 font-bold">(+23.4% / mo)</span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 block mt-1">Based on ₹2,00,000 capital & 1:2.2 RR</span>
+                      </div>
+
+                      {/* Broker Checklist */}
+                      <div className="space-y-2 text-xs font-mono">
+                        {[
+                          { name: "Zerodha Kite Connect API", status: "Verified Active" },
+                          { name: "Upstox Pro Webhooks", status: "Sub-15ms Route" },
+                          { name: "Hardware Max-Loss Kill Switch", status: "Enforced" }
+                        ].map((b, i) => (
+                          <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                            <span className="text-slate-200">{b.name}</span>
+                            <span className="text-emerald-400 font-bold text-[11px]">✓ {b.status}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <a
+                        href="#calculator"
+                        className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-slate-900 text-center font-bold text-xs uppercase tracking-wider block transition-all font-mono"
+                      >
+                        Adjust Capital Sliders →
+                      </a>
+                    </div>
+                  )}
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </section>
+
+          {/* ========================================================= */}
+          {/* 3. INTERACTIVE COCKPIT: SIGNALS TERMINAL & REAL-TIME RESEARCH */}
+          {/* ========================================================= */}
+          <section id="cockpit" className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+            
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xl shadow-slate-200/50 overflow-hidden transition-all">
+              
+              {/* Cockpit Header Tabs */}
+              <div className="bg-slate-50/90 border-b border-slate-200 px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
+                    Algologic COMMAND COCKPIT
+                  </span>
+                </div>
+
+                {/* Cockpit Mode Switcher */}
+                <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl text-xs font-semibold">
+                  <button
+                    onClick={() => setActiveCockpitTab("signals")}
+                    className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                      activeCockpitTab === "signals"
+                        ? "bg-white text-indigo-700 shadow-xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <IconActivity />
+                    <span>Live Signals Stream ({LIVE_SIGNALS_FEED.length})</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveCockpitTab("chart")}
+                    className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                      activeCockpitTab === "chart"
+                        ? "bg-white text-indigo-700 shadow-xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <IconBarChart />
+                    <span>Candlestick & Levels ({selectedSymbol})</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveCockpitTab("research")}
+                    className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                      activeCockpitTab === "research"
+                        ? "bg-white text-indigo-700 shadow-xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <IconSparkles />
+                    <span>Institutional Research</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* COCKPIT TAB 1: LIVE SIGNALS STREAM */}
+              {activeCockpitTab === "signals" && (
+                <div className="p-4 sm:p-6">
+                  
+                  {/* Signal Filters & Counter */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-mono text-slate-400 font-semibold uppercase mr-2">Filter:</span>
+                      {["ALL", "BUY", "SELL"].map(f => (
+                        <button
+                          key={f}
+                          onClick={() => setSignalFilter(f)}
+                          className={`text-xs font-mono px-2.5 py-1 rounded-lg border transition-all ${
+                            signalFilter === f
+                              ? "bg-slate-900 text-white border-slate-900 font-bold"
+                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+
+                    <span className="text-xs font-mono text-slate-500">
+                      Showing <strong>{filteredSignals.length}</strong> verified signals • Real-Time Order Flow
+                    </span>
+                  </div>
+
+                  {/* Signal Cards Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {filteredSignals.map(sig => (
+                      <div
+                        key={sig.id}
+                        className={`p-4 rounded-xl border transition-all hover:shadow-md cursor-pointer ${
+                          selectedSymbol === sig.symbol
+                            ? "bg-indigo-50/40 border-indigo-300 ring-2 ring-indigo-200/50"
+                            : "bg-white border-slate-200/80 hover:border-slate-300"
+                        }`}
+                        onClick={() => {
+                          setSelectedSymbol(sig.symbol);
+                          setActiveCockpitTab("chart");
+                        }}
+                      >
+                        {/* Header: Symbol & Direction */}
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-base font-extrabold text-slate-900">{sig.symbol}</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-500 block">
+                              {sig.segment}
+                            </span>
+                          </div>
+
+                          <span className={`px-2 py-0.5 rounded-lg text-xs font-mono font-extrabold flex items-center gap-1 ${
+                            sig.direction === "BUY"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-rose-50 text-rose-700 border border-rose-200"
+                          }`}>
+                            {sig.direction === "BUY" ? <IconTrendUp /> : <IconTrendDown />}
+                            {sig.direction}
+                          </span>
+                        </div>
+
+                        {/* Trade Key Levels Grid */}
+                        <div className="my-2.5 grid grid-cols-3 gap-1.5 bg-slate-50 p-2 rounded-lg font-mono text-xs border border-slate-100 text-center">
+                          <div>
+                            <span className="text-[9px] text-slate-400 block font-semibold">ENTRY</span>
+                            <span className="font-bold text-slate-900">₹{sig.entry.toFixed(2)}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] text-rose-500 block font-semibold">STOP</span>
+                            <span className="font-bold text-rose-700">₹{sig.stoploss.toFixed(2)}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] text-emerald-600 block font-semibold">TARGET</span>
+                            <span className="font-bold text-emerald-700">₹{sig.target1.toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        {/* Footer: Stats & Button */}
+                        <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100 font-mono text-[11px]">
+                          <span className="text-slate-500">R:R <strong className="text-slate-800">{sig.riskReward}</strong></span>
+                          <span className="text-emerald-700 font-bold">{sig.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                </div>
+              )}
+
+              {/* COCKPIT TAB 2: CANDLESTICK & LEVELS VISUALIZER */}
+              {activeCockpitTab === "chart" && (
+                <div className="p-4 sm:p-6">
+                  
+                  {/* Symbol Selector Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-slate-500 font-bold uppercase">SELECT ASSET:</span>
+                      {["BELRISE", "ARIHANTSUP", "INDOCO", "EVERESTIND"].map(sym => (
+                        <button
+                          key={sym}
+                          onClick={() => setSelectedSymbol(sym)}
+                          className={`text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all ${
+                            selectedSymbol === sym
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          {sym}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 font-mono text-xs">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">5M Breakout Timeframe</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                        {activeSignal.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Chart Layout: Visual Canvas + Sidebar Signal Thesis */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    {/* Visual SVG Candlestick Canvas */}
+                    <div className="lg:col-span-2 bg-slate-900 rounded-xl p-4 text-white relative shadow-inner overflow-hidden">
+                      
+                      {/* Chart Overlay Header */}
+                      <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-800 text-xs font-mono">
+                        <div className="flex items-center gap-3">
+                          <span className="font-extrabold text-sm text-white">{selectedSymbol} • 5m Tick</span>
+                          <span className="text-emerald-400 font-bold">Entry: ₹{activeSignal.entry.toFixed(2)}</span>
+                          <span className="text-cyan-400">Target: ₹{activeSignal.target1.toFixed(2)}</span>
+                          <span className="text-rose-400">Stop: ₹{activeSignal.stoploss.toFixed(2)}</span>
+                        </div>
+                        <span className="text-slate-400 text-[10px]">Algologic SVG Engine</span>
+                      </div>
+
+                      {/* SVG Canvas */}
+                      <div className="w-full overflow-x-auto no-scrollbar">
+                        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-56">
+                          
+                          {/* Grid Lines */}
+                          <line x1="0" y1="50" x2={chartWidth} y2="50" stroke="#334155" strokeDasharray="3,3" opacity="0.4" />
+                          <line x1="0" y1="120" x2={chartWidth} y2="120" stroke="#334155" strokeDasharray="3,3" opacity="0.4" />
+                          <line x1="0" y1="190" x2={chartWidth} y2="190" stroke="#334155" strokeDasharray="3,3" opacity="0.4" />
+
+                          {/* Target Line */}
+                          <line
+                            x1="0"
+                            y1={priceToY(activeSignal.target1)}
+                            x2={chartWidth}
+                            y2={priceToY(activeSignal.target1)}
+                            stroke="#38BDF8"
+                            strokeWidth="1.5"
+                            strokeDasharray="4,4"
+                          />
+                          <text x="10" y={priceToY(activeSignal.target1) - 4} fill="#38BDF8" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                            TARGET ₹{activeSignal.target1.toFixed(2)} (+2.00%)
+                          </text>
+
+                          {/* Entry Line */}
+                          <line
+                            x1="0"
+                            y1={priceToY(activeSignal.entry)}
+                            x2={chartWidth}
+                            y2={priceToY(activeSignal.entry)}
+                            stroke="#34D399"
+                            strokeWidth="1.5"
+                          />
+                          <text x="10" y={priceToY(activeSignal.entry) - 4} fill="#34D399" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                            ENTRY LEVEL ₹{activeSignal.entry.toFixed(2)}
+                          </text>
+
+                          {/* Stoploss Line */}
+                          <line
+                            x1="0"
+                            y1={priceToY(activeSignal.stoploss)}
+                            x2={chartWidth}
+                            y2={priceToY(activeSignal.stoploss)}
+                            stroke="#FB7185"
+                            strokeWidth="1.5"
+                            strokeDasharray="4,4"
+                          />
+                          <text x="10" y={priceToY(activeSignal.stoploss) - 4} fill="#FB7185" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                            STOP LOSS ₹{activeSignal.stoploss.toFixed(2)}
+                          </text>
+
+                          {/* Candlesticks */}
+                          {candleDataset.map((c, idx) => {
+                            const x = idx * candleSpacing + 25;
+                            const isGreen = c.close >= c.open;
+                            const candleColor = isGreen ? "#10B981" : "#F43F5E";
+                            const yOpen = priceToY(c.open);
+                            const yClose = priceToY(c.close);
+                            const yHigh = priceToY(c.high);
+                            const yLow = priceToY(c.low);
+                            const candleTop = Math.min(yOpen, yClose);
+                            const candleHeight = Math.max(Math.abs(yClose - yOpen), 2);
+
+                            return (
+                              <g key={idx}>
+                                <line x1={x + 7} y1={yHigh} x2={x + 7} y2={yLow} stroke={candleColor} strokeWidth="1.5" />
+                                <rect
+                                  x={x}
+                                  y={candleTop}
+                                  width="14"
+                                  height={candleHeight}
+                                  fill={candleColor}
+                                  rx="1.5"
+                                />
+                                {idx % 2 === 0 && (
+                                  <text x={x} y={chartHeight - 6} fill="#64748B" fontSize="9" fontFamily="monospace">
+                                    {c.time}
+                                  </text>
+                                )}
+                              </g>
+                            );
+                          })}
+
+                        </svg>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 mt-2 pt-2 border-t border-slate-800">
+                        <span>Candle Interval: 5m Continuous Tick</span>
+                        <span className="text-emerald-400">Green = Bullish Momentum • Blue = Take Profit Target</span>
+                      </div>
+                    </div>
+
+                    {/* Sidebar: Quantitative Trade Thesis */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase block mb-1">
+                          QUANTITATIVE AUDIT & THESIS
+                        </span>
+                        <h4 className="text-base font-bold text-slate-900 mb-2">
+                          {selectedSymbol} Institutional Setup
+                        </h4>
+                        
+                        <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                          {activeSignal.catalyst}. Confirmed by 5m volume <strong>{activeSignal.volumeSurge}</strong> above the 20-day baseline.
+                        </p>
+
+                        <div className="space-y-2 text-xs font-mono">
+                          <div className="flex justify-between py-1 border-b border-slate-200">
+                            <span className="text-slate-500">Direction</span>
+                            <span className="font-bold text-slate-900">{activeSignal.direction}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-slate-200">
+                            <span className="text-slate-500">Confidence</span>
+                            <span className="font-bold text-emerald-600">{activeSignal.confidence}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-slate-200">
+                            <span className="text-slate-500">Risk-to-Reward</span>
+                            <span className="font-bold text-indigo-600">{activeSignal.riskReward}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-slate-200">
+                            <span className="text-slate-500">Time</span>
+                            <span className="text-slate-800">{activeSignal.time}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-200">
+                        <button
+                          onClick={handleDownloadAudit}
+                          className="w-full py-2 px-3 rounded-lg bg-white border border-slate-300 text-slate-800 hover:bg-slate-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs font-mono"
+                        >
+                          <IconDownload />
+                          <span>Export Trade Log (CSV)</span>
+                        </button>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+              )}
+
+              {/* COCKPIT TAB 3: INSTITUTIONAL RESEARCH */}
+              {activeCockpitTab === "research" && (
+                <div className="p-4 sm:p-6">
+                  
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Institutional Market Intelligence Desk</h3>
+                      <p className="text-xs text-slate-500">Proprietary macroeconomic analysis, sector breadth scans, and liquidity anomaly tracking.</p>
+                    </div>
+
+                    <span className="text-xs font-mono px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100">
+                      3 New Publications Today
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {RESEARCH_BRIEFS.map(report => (
+                      <div key={report.id} className="p-5 bg-white rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between text-xs text-slate-400 font-mono mb-2">
+                            <span>{report.date}</span>
+                            <span className="text-indigo-600 font-bold">{report.readTime}</span>
+                          </div>
+                          
+                          <h4 className="text-base font-bold text-slate-900 mb-2 leading-snug">
+                            {report.title}
+                          </h4>
+
+                          <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                            {report.summary}
+                          </p>
+
+                          <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2 rounded-lg text-center font-mono text-[10px] mb-4 border border-slate-100">
+                            {report.keyStats.map((st, i) => (
+                              <div key={i}>
+                                <span className="text-slate-400 block">{st.label}</span>
+                                <span className="font-bold text-slate-900">{st.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-[11px] font-mono font-semibold text-emerald-700">
+                            {report.sentiment}
+                          </span>
+                          <a href="#research" className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-mono">
+                            <span>Read Note</span>
+                            <IconArrowUpRight />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                </div>
+              )}
+
+            </div>
+
+          </section>
+
+          {/* ========================================================= */}
+          {/* 4. QUANTITATIVE RESEARCH & SIGNAL PIPELINE (BENTO GRID)   */}
+          {/* ========================================================= */}
+          <section id="pipeline" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-200/80">
+            
+            <div className="text-center max-w-3xl mx-auto mb-12">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                PROPRIETARY ARCHITECTURE
+              </span>
+              <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+                How Algologic Generates Alpha
+              </h2>
+              <p className="mt-2 text-slate-600 text-base leading-relaxed">
+                From 12,000 raw market ticks per second to verified high-probability trade alerts, our 4-stage pipeline eliminates human bias and emotional execution.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              
+              <div className="p-6 bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-mono font-bold mb-4 border border-indigo-100">
+                  01
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mb-2">Tick Ingestion & IEP</h3>
+                <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                  High-speed capture of 2,400+ NSE symbols with sub-millisecond parsing of the 09:00–09:08 AM Indicative Equilibrium Price discovery auction.
+                </p>
+                <div className="text-[11px] font-mono text-indigo-600 font-semibold bg-indigo-50/60 p-2 rounded-lg">
+                  ⚡ 8.58M 5m Candles Indexed
+                </div>
+              </div>
+
+              <div className="p-6 bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-mono font-bold mb-4 border border-emerald-100">
+                  02
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mb-2">Order Flow & CVD</h3>
+                <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                  Real-time Cumulative Volume Delta (CVD) tracking distinguishes between passive retail limit orders and institutional market-sweeping block orders.
+                </p>
+                <div className="text-[11px] font-mono text-emerald-700 font-semibold bg-emerald-50/60 p-2 rounded-lg">
+                  📊 Institutional Block Detection
+                </div>
+              </div>
+
+              <div className="p-6 bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-mono font-bold mb-4 border border-amber-100">
+                  03
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mb-2">Rigorous Signal Filter</h3>
+                <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                  Every candidate setup must satisfy strict risk-to-reward parameters (minimum 1:2.0), no-repaint confirmation, and volatility boundary checks.
+                </p>
+                <div className="text-[11px] font-mono text-amber-700 font-semibold bg-amber-50/60 p-2 rounded-lg">
+                  🎯 Zero-Repaint Verification
+                </div>
+              </div>
+
+              <div className="p-6 bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all">
+                <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-mono font-bold mb-4 border border-cyan-100">
+                  04
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mb-2">Multi-Channel Routing</h3>
+                <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                  Signals are dispatched in &lt;15ms to our VIP Telegram channel, web terminal, and direct webhook endpoints for automated broker execution.
+                </p>
+                <div className="text-[11px] font-mono text-cyan-700 font-semibold bg-cyan-50/60 p-2 rounded-lg">
+                  🚀 Sub-15ms Dispatch Speed
+                </div>
+              </div>
+
+            </div>
+
+          </section>
+
+          {/* ========================================================= */}
+          {/* 5. VERIFIED PERFORMANCE & BACKTEST AUDIT                  */}
+          {/* ========================================================= */}
+          <section id="audit" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-200/80">
+            
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+              <div>
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+                  TRANSPARENT TRACK RECORD
+                </span>
+                <h2 className="mt-2 text-3xl font-extrabold text-slate-900 tracking-tight">
+                  Verified Backtest & Signal Audit
+                </h2>
+                <p className="text-slate-600 text-sm mt-1">
+                  Complete trade-by-trade log with real prices, timestamps, exit reasons, and exact net percentages.
+                </p>
+              </div>
+
+              <button
+                onClick={handleDownloadAudit}
+                className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 hover:bg-slate-50 font-semibold text-xs flex items-center gap-2 shadow-xs transition-all font-mono"
+              >
+                <IconDownload />
+                <span>Download Audit (CSV)</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 font-bold uppercase mr-1">Filter Trades:</span>
+                  {["ALL", "WIN", "BUY", "SELL"].map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setTableFilter(t)}
+                      className={`px-3 py-1 rounded-lg transition-all ${
+                        tableFilter === t
+                          ? "bg-slate-900 text-white font-bold"
+                          : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-4 text-slate-600 font-mono">
+                  <span>Target Win Rate: <strong className="text-emerald-600 font-bold">52.5%</strong></span>
+                  <span>Avg Return: <strong className="text-indigo-600 font-bold">+2.00% / win</strong></span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-slate-100/80 text-slate-500 uppercase text-[11px] border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4">Symbol</th>
+                      <th className="py-3 px-4">Type</th>
+                      <th className="py-3 px-4">Date & Time</th>
+                      <th className="py-3 px-4">Entry</th>
+                      <th className="py-3 px-4">Stoploss</th>
+                      <th className="py-3 px-4">Target</th>
+                      <th className="py-3 px-4">Exit Price</th>
+                      <th className="py-3 px-4">Return %</th>
+                      <th className="py-3 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {filteredAuditTrades.slice(0, 10).map((tr, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4 font-bold text-slate-900">{tr.symbol}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            tr.order_type === "BUY" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                          }`}>
+                            {tr.order_type}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-500">{tr.date} {tr.exit_time ? tr.exit_time.split(" ")[1] : "09:30"}</td>
+                        <td className="py-3 px-4 font-bold">₹{tr.entry.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-rose-600">₹{tr.stoploss.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-emerald-600">₹{tr.target_price.toFixed(2)}</td>
+                        <td className="py-3 px-4 font-bold text-slate-900">₹{tr.exit.toFixed(2)}</td>
+                        <td className="py-3 px-4 font-bold">
+                          <span className={tr.return_pct.startsWith("+") ? "text-emerald-600" : "text-rose-600"}>
+                            {tr.return_pct}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            tr.exit_reason === "TARGET"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-rose-100 text-rose-800"
+                          }`}>
+                            {tr.exit_reason}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </section>
+
+          {/* ========================================================= */}
+          {/* 6. INTERACTIVE QUANT EXPECTANCY CALCULATOR                */}
+          {/* ========================================================= */}
+          <section id="calculator" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-200/80 bg-slate-50/50 rounded-3xl my-8">
+            
+            <div className="text-center max-w-3xl mx-auto mb-10">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                PROFIT EXPECTANCY CALCULATOR
+              </span>
+              <h2 className="mt-3 text-3xl font-extrabold text-slate-900 tracking-tight">
+                Simulate Your Algorithmic Returns
+              </h2>
+              <p className="mt-2 text-slate-600 text-sm">
+                Model capital compounding based on Algologic's verified 1:2.2 risk-to-reward ratio and historical trade frequency.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-md">
+              
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-mono font-bold text-slate-700">TRADING CAPITAL</label>
+                    <span className="text-sm font-mono font-extrabold text-indigo-600">
+                      ₹{calcCapital.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="50000"
+                    max="2500000"
+                    step="25000"
+                    value={calcCapital}
+                    onChange={(e) => setCalcCapital(Number(e.target.value))}
+                    className="w-full accent-indigo-600 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-slate-400 mt-1">
+                    <span>₹50,000</span>
+                    <span>₹25,00,000</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-mono font-bold text-slate-700">RISK PER SIGNAL (% CAPITAL)</label>
+                    <span className="text-sm font-mono font-extrabold text-slate-900">
+                      {calcRiskPct}% (₹{calcMetrics.riskPerTrade.toLocaleString("en-IN")})
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="3.0"
+                    step="0.5"
+                    value={calcRiskPct}
+                    onChange={(e) => setCalcRiskPct(Number(e.target.value))}
+                    className="w-full accent-indigo-600 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-slate-400 mt-1">
+                    <span>0.5% (Conservative)</span>
+                    <span>3.0% (Aggressive)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-mono font-bold text-slate-700">SIGNALS TAKEN PER MONTH</label>
+                    <span className="text-sm font-mono font-extrabold text-slate-900">
+                      {calcTradesMonth} Signals
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="6"
+                    max="30"
+                    step="2"
+                    value={calcTradesMonth}
+                    onChange={(e) => setCalcTradesMonth(Number(e.target.value))}
+                    className="w-full accent-indigo-600 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-mono font-bold text-slate-700">WIN RATE BENCHMARK</label>
+                    <span className="text-sm font-mono font-extrabold text-emerald-600">
+                      {calcWinRate}% Win Rate
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="50"
+                    max="80"
+                    step="5"
+                    value={calcWinRate}
+                    onChange={(e) => setCalcWinRate(Number(e.target.value))}
+                    className="w-full accent-emerald-600 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-900 text-white rounded-xl p-6 flex flex-col justify-between shadow-xl">
+                <div>
+                  <span className="text-xs font-mono text-emerald-400 font-bold block mb-1">
+                    PROJECTED EXPECTANCY OUTCOME
+                  </span>
+                  <h3 className="text-2xl font-black tracking-tight mb-4">
+                    ₹{calcMetrics.netMonthlyProfit.toLocaleString("en-IN")}{" "}
+                    <span className="text-emerald-400 text-sm font-mono font-normal">
+                      (+{calcMetrics.monthlyReturnPct}% / mo)
+                    </span>
+                  </h3>
+
+                  <div className="space-y-3 font-mono text-xs border-t border-slate-800 pt-4">
+                    <div className="flex justify-between text-slate-300">
+                      <span>Winning Signals / Mo</span>
+                      <span className="text-emerald-400 font-bold">{calcMetrics.winTrades} Wins</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span>Controlled Losses / Mo</span>
+                      <span className="text-rose-400 font-bold">{calcMetrics.lossTrades} Exits</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span>Risk-Reward Preserved</span>
+                      <span className="text-cyan-400 font-bold">1 : 2.2 R-Multiple</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span>6-Month Compounded Capital</span>
+                      <span className="text-white font-extrabold text-sm">₹{calcMetrics.sixMonthCapital.toLocaleString("en-IN")}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-800">
+                  <a
+                    href="#pricing"
+                    className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-center font-bold text-xs uppercase tracking-wider block transition-all shadow-md shadow-emerald-500/20 font-mono"
+                  >
+                    Lock In VIP Signal Access
+                  </a>
+                </div>
+              </div>
+
+            </div>
+
+          </section>
+
+          {/* ========================================================= */}
+          {/* 7. MEMBERSHIP PLANS                                       */}
+          {/* ========================================================= */}
+          <section id="pricing" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-200/80">
+            
+            <div className="text-center max-w-3xl mx-auto mb-12">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                MEMBERSHIP TIERS
+              </span>
+              <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+                Transparent Plans For Every Trader
+              </h2>
+              <p className="mt-2 text-slate-600 text-base">
+                Whether you want daily pre-market research briefs or real-time automated webhook execution, we have a plan built for you.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+              
+              <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+                <div>
+                  <span className="text-xs font-mono font-bold text-slate-500 uppercase block mb-1">STARTER</span>
+                  <h3 className="text-xl font-bold text-slate-900 mb-1">Research Alpha</h3>
+                  <p className="text-xs text-slate-500 mb-4">Daily morning pre-market briefs & weekly sample signals.</p>
+                  
+                  <div className="text-3xl font-black text-slate-900 mb-6 font-mono">
+                    ₹0 <span className="text-xs font-normal text-slate-400">/ forever free</span>
+                  </div>
+
+                  <ul className="space-y-2.5 text-xs text-slate-600 mb-6">
+                    <li className="flex items-center gap-2"><IconCheck /> 09:00 AM Pre-Market IEP Watchlist</li>
+                    <li className="flex items-center gap-2"><IconCheck /> 2 High-Probability Signals / Week</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Macro Market Breadth Newsletter</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Community Telegram Discussion</li>
+                  </ul>
+                </div>
+
+                <a
+                  href="#cta"
+                  className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-center font-semibold text-xs transition-all block font-mono"
+                >
+                  Get Free Research
+                </a>
+              </div>
+
+              <div className="p-6 bg-white rounded-2xl border-2 border-indigo-600 shadow-xl shadow-indigo-100 relative flex flex-col justify-between">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[10px] font-mono font-extrabold uppercase px-3 py-0.5 rounded-full shadow-sm">
+                  MOST POPULAR • TRADERS DESK
+                </span>
+
+                <div>
+                  <span className="text-xs font-mono font-bold text-indigo-600 uppercase block mb-1">PRO TRADER</span>
+                  <h3 className="text-xl font-bold text-slate-900 mb-1">Live Signals VIP</h3>
+                  <p className="text-xs text-slate-500 mb-4">Complete real-time signal stream with instant alerts & risk management.</p>
+                  
+                  <div className="text-3xl font-black text-slate-900 mb-6 font-mono">
+                    ₹3,499 <span className="text-xs font-normal text-slate-400">/ month</span>
+                  </div>
+
+                  <ul className="space-y-2.5 text-xs text-slate-700 mb-6 font-medium">
+                    <li className="flex items-center gap-2"><IconCheck /> All Real-Time 5m Breakout Signals</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Instant VIP Telegram Bot Alerts (&lt;15ms)</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Exact Entry, Stoploss & Multi-Targets</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Nifty & BankNifty Gamma Option Signals</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Live Candlestick & Level Visualizer</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Automated Webhook (Zerodha / Upstox)</li>
+                  </ul>
+                </div>
+
+                <a
+                  href="#cta"
+                  className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-center font-bold text-xs uppercase tracking-wider transition-all block shadow-md shadow-indigo-200 font-mono"
+                >
+                  Start 7-Day Trial
+                </a>
+              </div>
+
+              <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+                <div>
+                  <span className="text-xs font-mono font-bold text-slate-500 uppercase block mb-1">ENTERPRISE</span>
+                  <h3 className="text-xl font-bold text-slate-900 mb-1">Prop Desk API</h3>
+                  <p className="text-xs text-slate-500 mb-4">For hedge funds, family offices, and systematic proprietary desks.</p>
+                  
+                  <div className="text-3xl font-black text-slate-900 mb-6 font-mono">
+                    ₹18,999 <span className="text-xs font-normal text-slate-400">/ month</span>
+                  </div>
+
+                  <ul className="space-y-2.5 text-xs text-slate-600 mb-6">
+                    <li className="flex items-center gap-2"><IconCheck /> Raw Tick WebSocket Data Stream</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Co-located Low-Latency Order Routing</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Custom Strategy Backtest Replay</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Multi-Account Execution Manager</li>
+                    <li className="flex items-center gap-2"><IconCheck /> Dedicated Quant Engineer Support</li>
+                  </ul>
+                </div>
+
+                <a
+                  href="#cta"
+                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-center font-semibold text-xs transition-all block font-mono"
+                >
+                  Contact Quant Desk
+                </a>
+              </div>
+
+            </div>
+
+          </section>
+
+          {/* ========================================================= */}
+          {/* 8. LEAD CAPTURE                                           */}
+          {/* ========================================================= */}
+          <section id="cta" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+            <div className="bg-gradient-to-tr from-slate-900 to-indigo-950 rounded-3xl p-8 sm:p-12 text-center text-white relative overflow-hidden shadow-2xl">
+              
+              <div className="max-w-2xl mx-auto relative z-10">
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-400/20">
+                  JOIN 3,400+ SYSTEMATIC TRADERS
+                </span>
+                
+                <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight">
+                  Start Trading With Algologic Today
+                </h2>
+                
+                <p className="mt-3 text-slate-300 text-sm sm:text-base leading-relaxed">
+                  Get our daily morning pre-market research brief and real-time breakout signals delivered directly to your inbox and Telegram.
+                </p>
+
+                {subscribed ? (
+                  <div className="mt-6 p-4 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-mono text-sm">
+                    ✓ Welcome to Algologic! Check your email for your terminal invitation & Telegram bot link.
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (emailInput) setSubscribed(true);
+                    }}
+                    className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto"
+                  >
+                    <input
+                      type="email"
+                      required
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      placeholder="trader@Algologic.com"
+                      className="w-full px-4 py-3 rounded-xl bg-slate-800/90 border border-slate-700 text-white placeholder-slate-400 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    />
+                    <button
+                      type="submit"
+                      className="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm transition-all shadow-lg shadow-emerald-500/20 shrink-0 font-mono"
+                    >
+                      Get Early Access
+                    </button>
+                  </form>
+                )}
+              </div>
+
+            </div>
+          </section>
+
+          {/* ========================================================= */}
+          {/* 9. FOOTER & SEBI DISCLAIMER                               */}
+          {/* ========================================================= */}
+          <footer className="bg-white border-t border-slate-200 py-8 px-4 sm:px-6 lg:px-8 text-xs text-slate-500">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+              
+              <div className="flex items-center gap-3">
+                <span className="font-extrabold text-slate-900 tracking-tight text-sm">
+                  algo<span className="text-indigo-600">logic</span>
+                </span>
+                <span>&copy; 2026 Algologic Technologies. All rights reserved.</span>
+              </div>
+
+              <div className="flex items-center gap-4 text-slate-600">
+                <a href="#cockpit" className="hover:text-slate-900">Signals Terminal</a>
+                <a href="#research" className="hover:text-slate-900">Research Hub</a>
+                <a href="#audit" className="hover:text-slate-900">Audit Proof</a>
+                <a href="#pricing" className="hover:text-slate-900">Pricing</a>
+              </div>
+
+              <div className="text-[11px] text-slate-400 font-mono">
+                Mumbai DC Co-Location &bull; Latency &lt;1.2ms &bull; 99.99% Uptime
+              </div>
+
+            </div>
+          </footer>
+
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById("root"));
+  </script>
+</body>
+</html>
